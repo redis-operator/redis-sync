@@ -1,0 +1,1 @@
+The repository was forked from[redis-event](https://github.com/maplestoria/redis-event) and the code was improved to be compatible with Redis 7.0. However, the current version of the tool is still in the experimental stage and should not be used for production purposes.
