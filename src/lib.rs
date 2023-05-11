@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::upper_case_acronyms)]
 #![feature(read_buf)]
-use std::io;
+
 use std::io::Read;
 
 use std::io::Result;
@@ -15,6 +15,7 @@ mod rdb;
 mod cmd;
 mod iter;
 mod lzf;
+mod io;
 use crate::rdb::{Module, Object};
 use crate::cmd::Command;
 
@@ -64,11 +65,3 @@ fn to_string(bytes: Vec<u8>) -> String {
     };
 }
 
-pub(crate) fn skip(input: &mut dyn Read, length: u64) -> Result<()> {
-// used for diskless transfers
-// when the master does not know beforehand the size of the file to
-// transfer. In the latter case, the following format is used:
-// $EOF:<40 bytes delimiter>
-    io::copy(&mut input.take(length), &mut io::sink())?;
-    Ok(())
-}

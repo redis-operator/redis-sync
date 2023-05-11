@@ -58,34 +58,50 @@ pub struct Field<'a> {
 pub(crate) fn parse_hmset(mut iter: Iter<Vec<u8>>) -> HMSET {
     let key = iter.next().unwrap();
     let mut fields = Vec::new();
-    loop {
-        if let Some(field) = iter.next() {
-            if let Some(value) = iter.next() {
-                let field = Field { name: field, value };
-                fields.push(field);
-            } else {
-                panic!("HMSET缺失field value");
-            }
+    // loop {
+    //     if let Some(field) = iter.next() {
+    //         if let Some(value) = iter.next() {
+    //             let field = Field { name: field, value };
+    //             fields.push(field);
+    //         } else {
+    //             panic!("HMSET缺失field value");
+    //         }
+    //     } else {
+    //         break;
+    //     }
+    // }
+    while let Some(field) = iter.next() {
+        if let Some(value) = iter.next() {
+            let field = Field { name: field, value };
+            fields.push(field);
         } else {
-            break;
+            panic!("HMSET缺失field value");
         }
-    }
+    } 
     HMSET { key, fields }
 }
 
 pub(crate) fn parse_hset(mut iter: Iter<Vec<u8>>) -> HSET {
     let key = iter.next().unwrap();
     let mut fields = Vec::new();
-    loop {
-        if let Some(field) = iter.next() {
-            if let Some(value) = iter.next() {
-                let field = Field { name: field, value };
-                fields.push(field);
-            } else {
-                panic!("HSET缺失field value");
-            }
+    // loop {
+    //     if let Some(field) = iter.next() {
+    //         if let Some(value) = iter.next() {
+    //             let field = Field { name: field, value };
+    //             fields.push(field);
+    //         } else {
+    //             panic!("HSET缺失field value");
+    //         }
+    //     } else {
+    //         break;
+    //     }
+    // }
+    while let Some(field) = iter.next() {
+        if let Some(value) = iter.next() {
+            let field = Field { name: field, value };
+            fields.push(field);
         } else {
-            break;
+            panic!("HSET缺失field value");
         }
     }
     HSET { key, fields }

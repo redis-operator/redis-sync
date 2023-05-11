@@ -38,18 +38,15 @@ pub(crate) fn parse_xadd(mut iter: Iter<Vec<u8>>) -> XADD {
     let key = iter.next().unwrap();
     let id = iter.next().unwrap();
     let mut fields = Vec::new();
-    loop {
-        if let Some(field) = iter.next() {
-            if let Some(value) = iter.next() {
-                let field = Field { name: field, value };
-                fields.push(field);
-            } else {
-                panic!("XADD缺失field value");
-            }
+    
+    while let Some(field) = iter.next() {
+        if let Some(value) = iter.next() {
+            let field = Field { name: field, value };
+            fields.push(field);
         } else {
-            break;
+            panic!("XADD缺失field value");
         }
-    }
+    };
     XADD { key, id, fields }
 }
 

@@ -1,14 +1,10 @@
 use anyhow::{anyhow, Result};
 
-use log::{debug};
+use crate::resp::{Resp, RespDecode, Type};
 use redis::ToRedisArgs;
 use std::io::{Read, Write};
-use crate::rdb::RDBParser;
-use crate::resp::{Resp, RespDecode, Type};
 
 impl<R: Read + Write + ?Sized> Connect for R {}
-
-
 
 pub trait Connect: Read + Write {
     fn auth(&mut self, password: Option<String>, username: Option<String>) -> Result<()> {
@@ -59,7 +55,7 @@ pub trait Connect: Read + Write {
     fn reply(&mut self) -> Result<()> {
         match self.decode_resp()? {
             Resp::String(s) => {
-                debug!("{:?}", s);
+                println!("{:?}", s);
             }
             Resp::Error(err) => {
                 if (err.contains("NOAUTH") || err.contains("NOPERM"))
@@ -76,7 +72,12 @@ pub trait Connect: Read + Write {
 
     fn replconf(&mut self, ip: String, port: u16) -> Result<()> {
         let mut args = vec![];
+        args.extend("PING".to_redis_args());
+        let result = redis::pack_command(&args);
+        self.write_all(&result)?;
+        self.reply()?;
 
+        let mut args = vec![];
         args.extend("REPLCONF".to_redis_args());
         args.extend("listening-port".to_redis_args());
         args.extend(port.to_redis_args());
@@ -84,6 +85,7 @@ pub trait Connect: Read + Write {
         self.write_all(&result)?;
         self.reply()?;
 
+        if ip!="127.0.0.1"{
         let mut args = vec![];
         args.extend("REPLCONF".to_redis_args());
         args.extend("ip-address".to_redis_args());
@@ -91,31 +93,39 @@ pub trait Connect: Read + Write {
         let result = redis::pack_command(&args);
         self.write_all(&result)?;
         self.reply()?;
-
+        }
         let mut args = vec![];
         args.extend("REPLCONF".to_redis_args());
         args.extend("capa".to_redis_args());
         args.extend("eof".to_redis_args());
-
-        let result = redis::pack_command(&args);
-        self.write_all(&result)?;
-        self.reply()?;
-
-        let mut args = vec![];
-        args.extend("REPLCONF".to_redis_args());
         args.extend("capa".to_redis_args());
         args.extend("psync2".to_redis_args());
 
         let result = redis::pack_command(&args);
         self.write_all(&result)?;
         self.reply()
+
+        // let mut args = vec![];
+        // args.extend("REPLCONF".to_redis_args());
+        // args.extend("capa".to_redis_args());
+        // args.extend("psync2".to_redis_args());
+
+        // let result = redis::pack_command(&args);
+        // self.write_all(&result)?;
+        // self.reply()?;
+
+        // let mut args = vec![];
+        // args.extend("REPLCONF".to_redis_args());
+        // args.extend("RDBONLY".to_redis_args());
+        // args.extend("0".to_redis_args());
+
+        // let result = redis::pack_command(&args);
+        // self.write_all(&result)?;
+        // self.reply()
+
     }
 
-    fn psync(
-        &mut self,
-        repl_id: String,
-        repl_offset: String,
-    ) -> Result<PsyncResp> {
+    fn psync(&mut self, repl_id: String, repl_offset: String) -> Result<PsyncResp> {
         let mut args = vec![];
 
         args.extend("PSYNC".to_redis_args());
@@ -126,7 +136,7 @@ pub trait Connect: Read + Write {
 
         match self.decode_resp() {
             Err(err) => {
-                return Err( anyhow!(" decode_resp err:{:?} " ,err ));
+                return Err(anyhow!(" decode_resp err:{:?} ", err));
             }
             Ok(response) => {
                 if let Resp::String(resp) = &response {
@@ -168,30 +178,42 @@ pub trait Connect: Read + Write {
                         }
                         next_type = NextStep::PartialResync;
                         length = -1;
-                    } else if resp.starts_with("NOMASTERLINK")|| resp.starts_with("LOADING")  {
+                    } else if resp.starts_with("NOMASTERLINK") || resp.starts_with("LOADING") {
                         next_type = NextStep::Wait;
                         length = -1;
-                    } ;
-                    return Ok(PsyncResp { next_step:next_type, repl_id, repl_offset, length });
+                    };
+                    return Ok(PsyncResp {
+                        next_step: next_type,
+                        repl_id,
+                        repl_offset,
+                        length,
+                    });
                 }
             }
         }
-        Ok(PsyncResp{next_step:NextStep::Wait,repl_id:"".to_string(),repl_offset:0,length:0})
-        
+        Ok(PsyncResp {
+            next_step: NextStep::Wait,
+            repl_id: "".to_string(),
+            repl_offset: 0,
+            length: 0,
+        })
     }
-    
 
-    fn replconf_ack(&mut self,repl_offset: String) -> Result<()> {
+    fn replconf_ack(&mut self, repl_offset: String) -> Result<()> {
+        
+        // let mut args = vec![];
+        // args.extend("ping".to_redis_args());
+        // let result = redis::pack_command(&args);
+        // self.write_all(&result)?;
+
         let mut args = vec![];
-        args.extend("PSYNC".to_redis_args());
+        args.extend("REPLCONF".to_redis_args());
         args.extend("ACK".to_redis_args());
         args.extend(repl_offset.to_redis_args());
         let result = redis::pack_command(&args);
-        self.write_all(&result)?; 
+        self.write_all(&result)?;
         Ok(())
     }
-    
-     
 }
 
 #[warn(dead_code)]
@@ -205,28 +227,38 @@ pub enum NextStep {
 
 #[warn(dead_code)]
 #[derive(Debug, PartialEq)]
-pub struct PsyncResp{
-   pub next_step: NextStep,
-   pub repl_id: String,
-   pub repl_offset: i64,
-   pub length: i64,
+pub struct PsyncResp {
+    pub next_step: NextStep,
+    pub repl_id: String,
+    pub repl_offset: i64,
+    pub length: i64,
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{rdb::{RDBParser, RDBDecode}, resp::RespDecode};
+    use crate::{
+        cmd,
+        rdb::{RDBDecode, RDBParser},
+        resp::{Resp, RespDecode},
+    };
 
     use super::Connect;
+    use crate::{Event, EventHandler};
     use byteorder::ReadBytesExt;
     use redis::ToRedisArgs;
-    use std::{net::TcpStream, sync::{atomic::AtomicBool, Arc}, io::{Write, Read, self}};
-    use crate::{EventHandler,Event};
+    use std::{
+        io::{self, Read, Write},
+        net::TcpStream,
+        sync::{atomic::{AtomicBool, AtomicI64, Ordering}, Arc},
+        thread::{sleep, self},
+        time::Duration, ops::Add, process::Command,
+    };
 
-    pub struct PrintEventHandler {}
+    pub struct PrintlnEventHandler {}
 
-    impl EventHandler for PrintEventHandler {
+    impl EventHandler for PrintlnEventHandler {
         fn handle(&mut self, event: Event) {
-            println!("{:?}",event)
+            println!("{:?}", event)
         }
     }
     #[test]
@@ -276,7 +308,7 @@ mod test {
     }
 
     #[test]
-    fn test_sync(){
+    fn test_sync() {
         let addr = format!("{}:{}", "127.0.0.1", 6379);
         let mut stream = TcpStream::connect(addr).expect("connect err");
         let socket_addr = stream.local_addr().unwrap();
@@ -296,19 +328,114 @@ mod test {
                     } else {
                         println!("Disk-less replication.");
                     }
-                    let mut handler = PrintEventHandler{};
-                    let _ = stream.parse(&mut handler, Arc::new(AtomicBool::new(true))).expect("pars rdb err");
+                    let mut handler = PrintlnEventHandler {};
+                    let _ = stream
+                        .parse(&mut handler, Arc::new(AtomicBool::new(true)))
+                        .expect("pars rdb err");
+                    if res.length == -1 {
+                        println!("skip rdb io");
+                        crate::io::skip(&mut stream, 40).expect("skip err");
+                    }
                     break;
-                },
+                }
                 super::NextStep::PartialResync => todo!(),
                 super::NextStep::ChangeMode => todo!(),
-                super::NextStep::Wait => todo!(),
+                super::NextStep::Wait => {sleep(Duration::from_secs(1))},
             };
         }
-        if res.length==-1{
-            println!("skip rd io");
-            crate::skip(&mut stream,40).expect("skip err");
+        
+        let repl_offset = Arc::new(AtomicI64::from(res.repl_offset));
+        let repl_offset_arc = Arc::clone(&repl_offset);
+        let mut conn_clone = stream.try_clone().unwrap();
+        let handle = thread::Builder::new()
+        .name("redis-sync background".to_string())
+        .spawn(move || {
+            loop{
+            let offset_str = repl_offset_arc.load(Ordering::Relaxed).to_string();
+            println!("ack {}",offset_str);
+            conn_clone.replconf_ack(offset_str).expect("replconf_err");
+            sleep(Duration::from_secs(3))
+            }
+        })
+        .unwrap();
+        
+
+        let mut handler = PrintlnEventHandler {};
+        
+
+        let mut stream_with_counter = crate::io::CountReader::new(&mut stream);
+        
+        println!("start aof loop");
+        sleep(Duration::from_secs(2));
+        loop {
+            stream_with_counter.mark();
+            if let Resp::Array(array) = stream_with_counter.decode_resp().expect("err") {
+                let size = stream_with_counter.reset().expect("reset err");
+                let mut vec = Vec::with_capacity(array.len());
+                for x in array {
+                    if let Resp::BulkBytes(bytes) = x {
+                        vec.push(bytes);
+                    } else {
+                        panic!("Expected BulkString response");
+                    }
+                }
+                cmd::parse(vec, &mut handler);
+                let offset = repl_offset.load(Ordering::Relaxed);
+                repl_offset.store(offset+size, Ordering::SeqCst);
+                // clone_stream.replconf_ack(offset.to_string()).expect("err");
+            } else {
+                panic!("Expected array response");
+            }
         }
-        stream.replconf_ack(res.repl_offset.to_string()).expect("ack err");  
+    }
+
+    fn start_redis_server(rdb: &str, port: u16) -> u32 {
+        // redis-server --port 6379 --daemonize no --dbfilename rdb --dir ./tests/rdb
+        let child = Command::new("redis-server")
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--daemonize")
+            .arg("no")
+            .arg("--dbfilename")
+            .arg(rdb)
+            .arg("--dir")
+            .arg("./tests/rdb")
+            .arg("--loglevel")
+            .arg("warning")
+            .arg("--logfile")
+            .arg(port.to_string())
+            .spawn()
+            .expect("failed to start redis-server");
+        return child.id();
+    }
+
+    fn start_auth_redis_server(rdb: &str, port: u16) -> u32 {
+        // redis-server --port 6379 --daemonize no --dbfilename rdb --dir ./tests/rdb
+        let child = Command::new("redis-server")
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--daemonize")
+            .arg("no")
+            .arg("--dbfilename")
+            .arg(rdb)
+            .arg("--dir")
+            .arg("./tests/rdb")
+            .arg("--loglevel")
+            .arg("warning")
+            .arg("--logfile")
+            .arg(port.to_string())
+            .arg("--requirepass")
+            .arg("123")
+            .spawn()
+            .expect("failed to start redis-server");
+        return child.id();
+    }
+
+    fn shutdown_redis(pid: u32) {
+        Command::new("kill")
+            .arg("-9")
+            .arg(pid.to_string())
+            .status()
+            .expect("kill redis failed");
     }
 }

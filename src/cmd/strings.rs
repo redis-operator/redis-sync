@@ -102,18 +102,16 @@ pub(crate) fn parse_bitfield(mut iter: Iter<Vec<u8>>) -> BITFIELD {
         }
     }
 
-    let _statements;
-    if statements.is_empty() {
-        _statements = None;
+    let _statements=if statements.is_empty() {
+         None
     } else {
-        _statements = Some(statements);
-    }
-    let _overflows;
-    if overflows.is_empty() {
-        _overflows = None;
+        Some(statements)
+    };
+    let _overflows= if overflows.is_empty() {
+         None
     } else {
-        _overflows = Some(overflows);
-    }
+        Some(overflows)
+    };
     BITFIELD {
         key,
         statements: _statements,
@@ -220,9 +218,13 @@ pub(crate) fn parse_set(mut iter: Iter<Vec<u8>>) -> SET {
             expire_time = Some(arg);
         }
     }
-    if expire_type.is_some() && expire_time.is_some() {
-        expire = Some((expire_type.unwrap(), expire_time.unwrap()));
-    }
+    // if expire_type.is_some() && expire_time.is_some() {
+    //     expire = Some((expire_type.unwrap(), expire_time.unwrap()));
+    // }
+    if let (Some(x),Some(y))= (expire_type,expire_time) {
+        expire = Some((x,y))
+    };
+    
     SET {
         key,
         value,

@@ -74,7 +74,11 @@ pub(crate) fn parse_zincrby(mut iter: Iter<Vec<u8>>) -> ZINCRBY {
     let key = iter.next().unwrap();
     let increment = iter.next().unwrap();
     let member = iter.next().unwrap();
-    ZINCRBY { key, increment, member }
+    ZINCRBY {
+        key,
+        increment,
+        member,
+    }
 }
 
 #[derive(Debug)]
@@ -118,12 +122,11 @@ pub(crate) fn parse_zinterstore(mut iter: Iter<Vec<u8>>) -> ZINTERSTORE {
             _weights.push(next_arg.as_slice());
         }
     }
-    let weights;
-    if _weights.is_empty() {
-        weights = None;
+    let weights = if _weights.is_empty() {
+        None
     } else {
-        weights = Some(_weights);
-    }
+        Some(_weights)
+    };
     ZINTERSTORE {
         destination,
         num_keys,
@@ -254,12 +257,11 @@ pub(crate) fn parse_zunionstore(mut iter: Iter<Vec<u8>>) -> ZUNIONSTORE {
             _weights.push(next_arg.as_slice());
         }
     }
-    let weights;
-    if _weights.is_empty() {
-        weights = None;
+    let weights = if _weights.is_empty() {
+         None
     } else {
-        weights = Some(_weights);
-    }
+        Some(_weights)
+    };
     ZUNIONSTORE {
         destination,
         num_keys,

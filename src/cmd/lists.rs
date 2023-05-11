@@ -46,13 +46,13 @@ pub enum POSITION {
 pub(crate) fn parse_linsert(mut iter: Iter<Vec<u8>>) -> LINSERT {
     let key = iter.next().unwrap();
     let next_arg = iter.next().unwrap();
-    let position;
+   // let position;
     let arg_upper = String::from_utf8_lossy(next_arg).to_uppercase();
-    if &arg_upper == "BEFORE" {
-        position = BEFORE;
+    let position =  if &arg_upper == "BEFORE" {
+         BEFORE
     } else {
-        position = AFTER;
-    }
+        AFTER
+    };
     let pivot = iter.next().unwrap();
     let element = iter.next().unwrap();
     LINSERT {

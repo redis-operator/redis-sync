@@ -5,7 +5,7 @@ use core::result;
 use std::any::Any;
 use std::cmp;
 use std::collections::BTreeMap;
-use std::fmt::{Debug, Error, Formatter};
+use std::fmt::{Debug, Error, Formatter, Display};
 use std::io::{Cursor, Read, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -95,7 +95,7 @@ pub trait RDBDecode: Read {
                     let mut compressed = vec![0; compressed_len as usize];
                     self.read_exact(&mut compressed)?;
                     let mut origin = vec![0; origin_len as usize];
-                    lzf::decompress(&mut compressed, compressed_len, &mut origin, origin_len);
+                    lzf::decompress(&mut compressed, compressed_len , &mut origin, origin_len );
                     return Ok(origin);
                 }
                 _ => panic!("Invalid string length: {}", length),
@@ -599,13 +599,13 @@ pub trait DefaultRDBParser: Read {
             RDB_TYPE_ZSET_LISTPACK => {
                 let key = self.read_string()?;
                 let items = self.read_zset_list_pack()?;
-                event_handler.handle(Event::RDB(Object::SortedSet(SortedSet { key: &key, items: &items , meta: meta })));
+                event_handler.handle(Event::RDB(Object::SortedSet(SortedSet { key: &key, items: &items ,  meta })));
             }
             RDB_TYPE_HASH_LISTPACK=>{
                 //println!("In>>>RDB_TYPE_HASH_LISTPACK");
                 let key = self.read_string()?;
                 let fields = self.read_hash_list_pack()?;
-                event_handler.handle(Event::RDB(Object::Hash(Hash { key: &key, fields:&fields , meta: meta })));
+                event_handler.handle(Event::RDB(Object::Hash(Hash { key: &key, fields:&fields ,  meta })));
             }
             RDB_TYPE_SET_LISTPACK=>{
                 panic!("no impl")
@@ -738,8 +738,8 @@ pub trait DefaultRDBParser: Read {
                 panic!("listpack expect 255 but {}", end);
             }
         }
-        
-        let steam_len =  self.read_length()?;
+        //stream len
+        let _ =  self.read_length()?;
         let last_id = ID{ms:self.read_length()?.0 as i64,seq: self.read_length()?.0 as i64 };
         let mut first_id= None;
         let mut max_deleted_id =None;
@@ -795,10 +795,10 @@ added_count = Some(self.read_length()?.0 as u64);
         Ok(Stream {
             entries,
             groups,
-            first_id:None,
-            last_id:None,
-            max_deleted_id:None,
-            added_entries_count:None,
+            first_id,
+            last_id:Some(last_id),
+            max_deleted_id,
+            added_entries_count: added_count ,
             meta:_meta,
 
         })
@@ -1127,9 +1127,10 @@ pub struct ID {
     pub seq: i64,
 }
 
-impl ID {
-    pub fn to_string(&self) -> String {
-        format!("{}-{}", self.ms, self.seq)
+
+impl  Display for ID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.ms, self.seq)
     }
 }
 
@@ -1138,9 +1139,9 @@ impl PartialEq for ID {
         self.ms == other.ms && self.seq == other.seq
     }
 
-    fn ne(&self, other: &Self) -> bool {
-        self.ms != other.ms || self.seq != other.seq
-    }
+    // fn ne(&self, other: &Self) -> bool {
+    //     self.ms != other.ms || self.seq != other.seq
+    // }
 }
 
 impl PartialOrd for ID {
